@@ -18,8 +18,9 @@ class TestRelativeAirSpeed:
         assert abs(v_rel - 10.0) < 0.001
 
     def test_headwind(self) -> None:
-        """Test relative speed with headwind (riding north into north wind)."""
-        env = Environment(air_density=1.225, wind_u_ms=0.0, wind_v_ms=5.0)
+        """Test relative speed with headwind (riding north into south wind)."""
+        # wind_v_ms = -5.0 means wind blowing FROM south TO north (against northward travel)
+        env = Environment(air_density=1.225, wind_u_ms=0.0, wind_v_ms=-5.0)
         v_rel = relative_air_speed(10.0, 0.0, env)  # Riding north
 
         # Headwind increases relative air speed
@@ -27,8 +28,9 @@ class TestRelativeAirSpeed:
         assert abs(v_rel - 15.0) < 0.001
 
     def test_tailwind(self) -> None:
-        """Test relative speed with tailwind (riding north with south wind)."""
-        env = Environment(air_density=1.225, wind_u_ms=0.0, wind_v_ms=-5.0)
+        """Test relative speed with tailwind (riding north with north wind)."""
+        # wind_v_ms = 5.0 means wind blowing FROM south TO north (same as northward travel)
+        env = Environment(air_density=1.225, wind_u_ms=0.0, wind_v_ms=5.0)
         v_rel = relative_air_speed(10.0, 0.0, env)  # Riding north
 
         # Tailwind decreases relative air speed
