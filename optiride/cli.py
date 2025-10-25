@@ -2,6 +2,7 @@ import argparse
 import datetime
 import json
 import os
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,12 +11,69 @@ import pandas as pd
 from .bike_library import get_bike_config, list_bike_types, list_positions, list_wheel_types
 from .env import air_density_kg_m3
 from .exporter import write_power_gpx
+from .fueling import calculate_fueling_points
 from .gpxio import read_gpx_resample
 from .map_exporter import export_interactive_map
 from .models import Environment, RiderBike
 from .nutrition import fueling_plan
 from .optimizer import pace_heuristic, simulate
 from .weather import fetch_open_meteo, met_wdir_to_uv
+
+
+def _calculate_target_power(args, estimated_duration_h: Optional[float] = None) -> float:
+    """Calculate target power from FTP, intensity factor, or power-flat.
+
+    Priority order:
+    1. --power-flat (explicit power)
+    2. --intensity-factor (fraction of FTP)
+    3. Auto-calculate from FTP based on estimated duration
+
+    Args:
+        args: Parsed command-line arguments.
+        estimated_duration_h: Estimated ride duration in hours (optional).
+
+    Returns:
+        Target power in watts.
+    """
+    # Priority 1: Explicit power-flat
+    if args.power_flat is not None:
+        return args.power_flat
+
+    # Check FTP is available
+    if args.ftp is None:
+        raise ValueError(
+            "FTP est requis pour calculer automatiquement la puissance cible. "
+            "Spécifiez --ftp ou utilisez --power-flat explicitement."
+        )
+
+    # Priority 2: Intensity factor
+    if args.intensity_factor is not None:
+        if not 0.0 < args.intensity_factor <= 1.0:
+            raise ValueError("--intensity-factor doit être entre 0.0 et 1.0")
+        return args.ftp * args.intensity_factor
+
+    # Priority 3: Auto-calculate based on duration
+    # Use conservative defaults based on typical endurance rides
+    if estimated_duration_h is not None:
+        if estimated_duration_h < 1.0:
+            # Short effort: 90-95% FTP
+            intensity = 0.92
+        elif estimated_duration_h < 2.0:
+            # Medium effort: 85-90% FTP
+            intensity = 0.87
+        elif estimated_duration_h < 4.0:
+            # Long effort: 75-85% FTP
+            intensity = 0.80
+        else:
+            # Very long effort: 65-75% FTP
+            intensity = 0.70
+    else:
+        # No duration estimate: use conservative 75% FTP (tempo pace)
+        intensity = 0.75
+
+    power = args.ftp * intensity
+    print(f"💡 Puissance cible calculée automatiquement: {power:.0f}W ({intensity * 100:.0f}% FTP)")
+    return power
 
 
 def _build_rb_env(args, airtemp, humidity, pressure, wind_u, wind_v):
@@ -75,13 +133,16 @@ def compute(args):
 
     rb, env, rho = _build_rb_env(args, airtemp, humidity, pressure, wind_u, wind_v)
 
+    # Calculate target power (auto-calculated if not specified)
+    power_flat = _calculate_target_power(args, estimated_duration_h=None)
+
     P_target = pace_heuristic(
         dist,
         slope,
         bearings,
         rb,
         env,
-        P_flat=args.power_flat,
+        P_flat=power_flat,
         up_mult=args.up_mult,
         down_mult=args.down_mult,
         max_delta_w=args.max_delta,
@@ -173,6 +234,19 @@ def compute(args):
             "avg_speed": float(np.mean(v) * 3.6),
             "kcal": float(fuel["kcal"]),
         }
+
+        # Calculate fueling points based on ride data
+        fueling_points = calculate_fueling_points(
+            distances_km=df["dist_m"].values / 1000.0,
+            times_h=df["t_cum_s"].values / 3600.0,
+            powers_w=df["P_target_W"].values,
+            ftp=rb.ftp if rb.ftp is not None else args.ftp,
+            cp=rb.cp,
+            w_prime=rb.w_prime_j,
+            refuel_interval_min=20.0,
+            carbs_per_hour=60.0,
+        )
+
         export_interactive_map(
             map_out,
             lats=df["lat"].values,
@@ -181,10 +255,13 @@ def compute(args):
             powers=df["P_target_W"].values,
             distances_km=df["dist_m"].values / 1000.0,
             speeds_kmh=df["v_ms"].values * 3.6,
+            ftp=rb.ftp if rb.ftp is not None else args.ftp,
             title="OptiRide - Stratégie de pacing",
             summary_stats=summary_stats,
+            fueling_points=fueling_points,
         )
         print(f"Carte interactive exportée: {map_out}")
+        print(f"Points de ravitaillement: {len(fueling_points)}")
 
     print(
         json.dumps(
@@ -207,6 +284,9 @@ def optimize_start(args) -> None:
     lat = float(np.mean(lat_i))
     lon = float(np.mean(lon_i))
 
+    # Calculate target power once (same for all hours)
+    power_flat = _calculate_target_power(args, estimated_duration_h=None)
+
     # Récupère la série horaire à partir de maintenant (UTC)
     # On réutilise fetch_open_meteo pour chaque index horaire (0..23).
     hours = list(range(args.start_hour, args.end_hour + 1))
@@ -228,7 +308,7 @@ def optimize_start(args) -> None:
             bearings,
             rb,
             env,
-            P_flat=args.power_flat,
+            P_flat=power_flat,
             up_mult=args.up_mult,
             down_mult=args.down_mult,
             max_delta_w=args.max_delta,
@@ -283,6 +363,64 @@ def optimize_start(args) -> None:
         # On peut calculer v/dt aussi si besoin, mais pour le GPX seules lat/lon/ele/power suffisent
         gpx_out = os.path.join(args.output_dir, f"power_targets_best_hour_{hr}.gpx")
         write_power_gpx(gpx_out, lat_i, lon_i, elev, P_target, name=f"optiride-best-hour-{hr}")
+
+    # Export carte interactive si demandé
+    if args.export_map:
+        # Re-simulate for the best hour to get complete data
+        hr = best[0]
+        w = best[3]
+        airtemp = w["temperature_C"]
+        humidity = w["humidity_frac"]
+        pressure = w["pressure_Pa"]
+        wind_u, wind_v = met_wdir_to_uv(w["wind_speed_mps"], w["wind_dir_deg"])
+        rb, env, rho = _build_rb_env(args, airtemp, humidity, pressure, wind_u, wind_v)
+        P_target = best[4]
+        v, dt, T, W = simulate(dist, slope, bearings, P_target, rb, env)
+
+        # Create DataFrame for calculations
+        times_cum_s = np.cumsum(dt)
+        distances_km = dist / 1000.0
+
+        # Calculate fueling points
+        fueling_points = calculate_fueling_points(
+            distances_km=distances_km,
+            times_h=times_cum_s / 3600.0,
+            powers_w=P_target,
+            ftp=rb.ftp if rb.ftp is not None else args.ftp,
+            cp=rb.cp,
+            w_prime=rb.w_prime_j,
+            refuel_interval_min=20.0,
+            carbs_per_hour=60.0,
+        )
+
+        # Calculate stats
+        elevation_gain = float(np.sum(np.maximum(0, np.diff(elev))))
+        fuel = fueling_plan(T, W, gross_eff=args.gross_eff)
+        summary_stats = {
+            "distance_km": float(dist[-1] / 1000.0),
+            "time_h": float(T / 3600.0),
+            "elevation_gain": elevation_gain,
+            "avg_power": float(np.mean(P_target)),
+            "avg_speed": float(np.mean(v) * 3.6),
+            "kcal": float(fuel["kcal"]),
+        }
+
+        map_out = os.path.join(args.output_dir, f"interactive_map_best_hour_{hr}.html")
+        export_interactive_map(
+            map_out,
+            lats=lat_i,
+            lons=lon_i,
+            elevations=elev,
+            powers=P_target,
+            distances_km=distances_km,
+            speeds_kmh=v * 3.6,
+            ftp=rb.ftp if rb.ftp is not None else args.ftp,
+            title=f"OptiRide - Heure optimale: {hr}h",
+            summary_stats=summary_stats,
+            fueling_points=fueling_points,
+        )
+        print(f"Carte interactive exportée: {map_out}")
+        print(f"Points de ravitaillement: {len(fueling_points)}")
 
     print(
         json.dumps(
@@ -342,7 +480,16 @@ def _add_rider_args(parser):
 def _add_pacing_args(parser):
     """Add common pacing strategy arguments to a parser."""
     parser.add_argument(
-        "--power-flat", type=float, required=True, help="Puissance de base sur plat (W)"
+        "--power-flat",
+        type=float,
+        default=None,
+        help="Puissance de base sur plat (W). Si non spécifié, calculé automatiquement depuis FTP",
+    )
+    parser.add_argument(
+        "--intensity-factor",
+        type=float,
+        default=None,
+        help="Facteur d'intensité (0.0-1.0, fraction du FTP). Alternative à --power-flat",
     )
     parser.add_argument("--up-mult", type=float, default=1.10, help="Multiplicateur en montée")
     parser.add_argument("--down-mult", type=float, default=0.75, help="Multiplicateur en descente")

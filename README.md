@@ -34,11 +34,13 @@
 
 - 🎯 **Point-by-point power targets** optimized for terrain and conditions
 - ⏱️ **Accurate time predictions** using physics-based modeling
-- 🍎 **Nutrition & hydration planning** based on scientific guidelines
+- 🍎 **Smart refueling recommendations** with personalized FTP zones and fatigue tracking
+- 💪 **W' balance modeling** for real-time anaerobic capacity monitoring
+- 🗺️ **Interactive HTML maps** with power zones, refueling points, and elevation profile
 - 🌤️ **Automatic weather integration** with wind impact analysis
 - 📊 **Rich visualizations** of elevation, power, and speed profiles
 - 🕐 **Start time optimization** to find the best weather window
-- 📁 **Multiple export formats** (CSV, GPX with power extensions, JSON)
+- 📁 **Multiple export formats** (CSV, GPX with power extensions, JSON, HTML maps)
 - 🔬 **Type-safe & well-tested** with comprehensive docstrings
 
 ## 📦 Installation
@@ -82,20 +84,31 @@ OptiRide now includes a **comprehensive bike database** with **automatic CdA adj
 **Minimum required:**
 - Your GPX trace
 - Your weight and FTP
-- Target power on flat
 
 **Optional but recommended:**
 - Your height (for precise CdA estimation)
 - Bike type (defaults to `aero_road`)
+- Target power (auto-calculated from FTP if not specified)
 
 ```bash
-# Basic usage - CdA automatically adjusted for your size!
+# Basic usage - Everything calculated automatically from FTP!
 optiride compute \
   --gpx examples/sample.gpx \
   --mass 72 \
   --height 1.80 \
-  --ftp 260 \
+  --ftp 260
+
+# Or specify target power explicitly:
+optiride compute \
+  --gpx examples/sample.gpx \
+  --mass 72 --height 1.80 --ftp 260 \
   --power-flat 220
+
+# Or use intensity factor (cleaner):
+optiride compute \
+  --gpx examples/sample.gpx \
+  --mass 72 --height 1.80 --ftp 260 \
+  --intensity-factor 0.85
 ```
 
 ### 🚴 Choose your bike and position
@@ -107,7 +120,7 @@ optiride compute \
   --bike-type aero_road \
   --position drops \
   --wheels deep_section \
-  --power-flat 220
+  --intensity-factor 0.85
 ```
 
 **Available bike types:**
@@ -131,7 +144,6 @@ optiride compute \
 optiride compute \
   --gpx examples/sample.gpx \
   --mass 72 --ftp 260 \
-  --power-flat 220 \
   --auto-weather --hour 9
 ```
 
@@ -143,17 +155,30 @@ Generate a beautiful interactive HTML map with power zones visualization:
 optiride compute \
   --gpx examples/sample.gpx \
   --mass 72 --height 1.80 --ftp 260 \
-  --power-flat 220 \
   --export-map
 ```
 
 **Features of the interactive map:**
-- 🎨 Color-coded route by power zones
+- 🎨 Color-coded route by **personalized FTP-based power zones**
+- 🍎 **Smart refueling markers** with nutrition recommendations
 - 📊 Elevation profile chart
 - 📈 Ride statistics panel
+- 💪 **Fatigue tracking** using W' balance model
 - 🔍 Click on segments for detailed info
 - 🗺️ Multiple map layers (terrain, satellite, etc.)
 - 📱 Responsive design works on mobile
+
+**Refueling features:**
+- Personalized power zones calculated from your FTP (Coggan 7-zone model)
+- W' balance tracking for real-time fatigue estimation (Skiba model)
+- Adaptive nutrition type (gels, bars, drinks) based on:
+  - Current fatigue level
+  - Ride intensity
+  - Time elapsed
+- Detailed recommendations at each refueling point:
+  - Carbohydrates, fluids, sodium intake
+  - Fatigue index and W' balance
+  - Context-aware advice
 
 **Installation required:**
 ```bash
@@ -170,7 +195,6 @@ Find the best time to start based on weather conditions:
 optiride optimize-start \
   --gpx examples/sample.gpx \
   --mass 72 --ftp 260 \
-  --power-flat 220 \
   --start-hour 6 --end-hour 20 \
   --export-gpx
 ```
@@ -299,7 +323,6 @@ print(f"Required power: {power:.1f} W")
 | `--gpx` | Path to GPX file | `route.gpx` |
 | `--mass` | Rider weight (kg) | `72` |
 | `--ftp` | Functional Threshold Power (W) | `260` |
-| `--power-flat` | Target power on flat terrain (W) | `220` |
 
 #### Rider Anthropometry (Optional but recommended)
 
@@ -335,10 +358,19 @@ print(f"Required power: {power:.1f} W")
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
+| `--power-flat` | Target power on flat (W). If omitted, auto-calculated from FTP | Auto: 75% FTP |
+| `--intensity-factor` | Intensity as fraction of FTP (0.0-1.0). Alternative to --power-flat | None |
 | `--up-mult` | Power multiplier for climbs | 1.10 |
 | `--down-mult` | Power multiplier for descents | 0.75 |
 | `--max-delta` | Max power change between points (W) | 30.0 |
 | `--step-m` | Resampling distance (m) | 20.0 |
+
+**Auto-calculation rules (when --power-flat not specified):**
+- < 1h ride: 92% FTP (short effort)
+- 1-2h ride: 87% FTP (medium effort)
+- 2-4h ride: 80% FTP (long effort)
+- > 4h ride: 70% FTP (very long effort)
+- Unknown duration: 75% FTP (conservative default)
 
 ### Weather Integration
 
@@ -416,9 +448,27 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Cycling power model based on [Martin et al. (1998)](https://journals.humankinetics.com/view/journals/jab/14/3/article-p276.xml)
-- Weather data from [Open-Meteo](https://open-meteo.com/)
-- Nutrition guidelines based on [Jeukendrup (2014)](https://link.springer.com/article/10.1007/s40279-013-0079-0)
+### Scientific References
+
+**Physics & Power Modeling:**
+- [Martin et al. (1998)](https://journals.humankinetics.com/view/journals/jab/14/3/article-p276.xml) - "Validation of a Mathematical Model for Road Cycling Power" - Foundation for the cycling power equations used throughout OptiRide
+
+**Fatigue & Performance:**
+- [Skiba et al. (2012)](https://journals.lww.com/acsm-msse/fulltext/2012/08000/modeling_the_expenditure_and_reconstitution_of.17.aspx) - "Modeling the Expenditure and Reconstitution of Work Capacity Above Critical Power" - W' balance differential model implementation
+- [Coggan (2003)](https://www.trainingpeaks.com/blog/power-training-levels/) - Power training zones model (7-zone system based on FTP)
+
+**Nutrition & Fueling:**
+- [Jeukendrup (2014)](https://link.springer.com/article/10.1007/s40279-013-0079-0) - "A Step Towards Personalized Sports Nutrition: Carbohydrate Intake During Exercise" - Scientific guidelines for carbohydrate intake rates
+- [Thomas et al. (2016)](https://pubmed.ncbi.nlm.nih.gov/26841883/) - "American College of Sports Medicine Joint Position Statement: Nutrition and Athletic Performance" - Hydration and sodium recommendations
+
+**Aerodynamics & Body Composition:**
+- [DuBois & DuBois (1916)](https://jamanetwork.com/journals/jama/article-abstract/471308) - "A Formula to Estimate the Approximate Surface Area if Height and Weight Be Known" - Anthropometric scaling for CdA estimation
+
+### Technologies & Services
+
+- [Open-Meteo](https://open-meteo.com/) - Free weather API for real-time meteorological data
+- [Folium](https://python-visualization.github.io/folium/) - Interactive mapping library built on Leaflet.js
+- [OpenTopoMap](https://opentopomap.org/) - Topographic map tiles for terrain visualization
 
 ## 📮 Contact
 

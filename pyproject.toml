@@ -124,6 +124,7 @@ convention = "google"
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D"]
 "examples/*" = ["D"]
+"optiride/map_exporter.py" = ["E501"]  # HTML strings can be long
 
 [tool.ruff.format]
 quote-style = "double"

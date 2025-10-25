@@ -36,6 +36,14 @@ from optiride.bike_library import (
     list_positions,
     list_wheel_types,
 )
+from optiride.fueling import (
+    FuelingPoint,
+    calculate_fatigue_index,
+    calculate_fueling_points,
+    calculate_power_zones,
+    calculate_w_prime_balance,
+    get_power_zone_name,
+)
 from optiride.models import Environment, RiderBike
 from optiride.optimizer import pace_heuristic, simulate
 from optiride.physics import power_required, relative_air_speed, speed_from_power
@@ -49,11 +57,18 @@ __all__ = [
     "BikeType",
     # Core models
     "Environment",
+    # Fueling & fatigue
+    "FuelingPoint",
     "RiderBike",
     "RidingPosition",
     "WheelType",
+    "calculate_fatigue_index",
+    "calculate_fueling_points",
+    "calculate_power_zones",
+    "calculate_w_prime_balance",
     "estimate_cda_from_height_mass",
     "get_bike_config",
+    "get_power_zone_name",
     "get_simple_config",
     "list_bike_types",
     "list_positions",

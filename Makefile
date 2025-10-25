@@ -78,10 +78,10 @@ docs-serve:  ## Serve documentation locally
 
 example:  ## Run example computation
 	optiride compute \
-		--gpx examples/CingléVentoux.gpx \
+		--gpx examples/Auxonne.gpx \
 		--mass 65 --height 1.86 --age 28 \
-		--ftp 250 --power-flat 200 \
+		--ftp 200 --intensity-factor 0.95 \
 		--bike-mass 7.0 --auto-weather \
-		--export-gpx
+		--export-gpx --export-map
 
 .DEFAULT_GOAL := help
