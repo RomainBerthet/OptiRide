@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx creator="velopace" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk><name>sample</name><trkseg>
+    <trkpt lat="48.8566" lon="2.3522"><ele>35</ele></trkpt>
+    <trkpt lat="48.8567" lon="2.3532"><ele>36</ele></trkpt>
+    <trkpt lat="48.8569" lon="2.3542"><ele>38</ele></trkpt>
+    <trkpt lat="48.8572" lon="2.3552"><ele>41</ele></trkpt>
+    <trkpt lat="48.8576" lon="2.3562"><ele>45</ele></trkpt>
+    <trkpt lat="48.8581" lon="2.3572"><ele>47</ele></trkpt>
+    <trkpt lat="48.8587" lon="2.3582"><ele>44</ele></trkpt>
+    <trkpt lat="48.8594" lon="2.3592"><ele>40</ele></trkpt>
+    <trkpt lat="48.8602" lon="2.3602"><ele>38</ele></trkpt>
+    <trkpt lat="48.8611" lon="2.3612"><ele>36</ele></trkpt>
+  </trkseg></trk>
+</gpx>

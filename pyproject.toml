@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "OptiRide"
+version = "0.1.0"
+description = "Optimiseur de pacing vélo à partir d'un GPX (puissance, nutrition, hydratation, heure de départ)."
+readme = "README.md"
+authors = [{name="Romain BERTHET", email="berthet.romain3@gmail.com"}]
+requires-python = ">=3.9"
+dependencies = [
+    "requests>=2.31",
+    "gpxpy>=1.6.2",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+    "matplotlib>=3.7"
+]
+
+[project.scripts]
+pace-gpx = "optiride.cli:main"
+
+[tool.setuptools.package-data]
+velopace = ["py.typed"]
