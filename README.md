@@ -135,6 +135,33 @@ optiride compute \
   --auto-weather --hour 9
 ```
 
+### 🗺️ Export interactive map
+
+Generate a beautiful interactive HTML map with power zones visualization:
+
+```bash
+optiride compute \
+  --gpx examples/sample.gpx \
+  --mass 72 --height 1.80 --ftp 260 \
+  --power-flat 220 \
+  --export-map
+```
+
+**Features of the interactive map:**
+- 🎨 Color-coded route by power zones
+- 📊 Elevation profile chart
+- 📈 Ride statistics panel
+- 🔍 Click on segments for detailed info
+- 🗺️ Multiple map layers (terrain, satellite, etc.)
+- 📱 Responsive design works on mobile
+
+**Installation required:**
+```bash
+pip install "optiride[maps]"
+# or
+pip install folium
+```
+
 ### Optimize start time
 
 Find the best time to start based on weather conditions:
@@ -168,7 +195,8 @@ optiride compute \
 - `outputs/summary.json`: Comprehensive ride summary (time, kCal, nutrition plan)
 - `outputs/targets.csv`: Detailed point-by-point targets (distance, slope, power, speed)
 - `outputs/plots/*.png`: Elevation profile, power curve, speed profile
-- `outputs/power_targets.gpx`: GPX file with power extensions (optional)
+- `outputs/power_targets.gpx`: GPX file with power extensions (optional, `--export-gpx`)
+- `outputs/interactive_map.html`: Interactive map with power zones (optional, `--export-map`) 🆕
 
 ## 🐍 Python API
 

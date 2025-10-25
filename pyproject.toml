@@ -57,6 +57,9 @@ jupyter = [
     "ipywidgets>=8.1",
     "plotly>=5.22",
 ]
+maps = [
+    "folium>=0.17.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/romainberthet/optiride"
@@ -150,6 +153,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "matplotlib.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "folium.*"
 ignore_missing_imports = true
 
 # ==============================================================================

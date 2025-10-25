@@ -7,10 +7,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from .bike_library import get_bike_config, list_bike_types, list_positions
+from .bike_library import get_bike_config, list_bike_types, list_positions, list_wheel_types
 from .env import air_density_kg_m3
 from .exporter import write_power_gpx
 from .gpxio import read_gpx_resample
+from .map_exporter import export_interactive_map
 from .models import Environment, RiderBike
 from .nutrition import fueling_plan
 from .optimizer import pace_heuristic, simulate
@@ -159,6 +160,32 @@ def compute(args):
             start_time=start_time,
         )
 
+    # Export carte interactive si demandé
+    if args.export_map:
+        map_out = os.path.join(args.output_dir, "interactive_map.html")
+        # Calculate elevation gain
+        elevation_gain = float(np.sum(np.maximum(0, np.diff(elev))))
+        summary_stats = {
+            "distance_km": float(dist[-1] / 1000.0),
+            "time_h": float(T / 3600.0),
+            "elevation_gain": elevation_gain,
+            "avg_power": float(np.mean(P_target)),
+            "avg_speed": float(np.mean(v) * 3.6),
+            "kcal": float(fuel["kcal"]),
+        }
+        export_interactive_map(
+            map_out,
+            lats=df["lat"].values,
+            lons=df["lon"].values,
+            elevations=df["elev_m"].values,
+            powers=df["P_target_W"].values,
+            distances_km=df["dist_m"].values / 1000.0,
+            speeds_kmh=df["v_ms"].values * 3.6,
+            title="OptiRide - Stratégie de pacing",
+            summary_stats=summary_stats,
+        )
+        print(f"Carte interactive exportée: {map_out}")
+
     print(
         json.dumps(
             {
@@ -264,18 +291,13 @@ def optimize_start(args) -> None:
     )
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(
-        prog="pace-gpx", description="Optimiseur de pacing vélo à partir d'un GPX"
-    )
-    sub = p.add_subparsers(dest="cmd")
-
-    c = sub.add_parser("compute", help="Calculer la puissance cible et le plan de ravitaillement")
+def _add_rider_args(parser):
+    """Add common rider and bike arguments to a parser."""
     # Required: trace et infos cycliste
-    c.add_argument("--gpx", required=True, help="Chemin du fichier GPX")
-    c.add_argument("--mass", type=float, required=True, help="Poids du cycliste (kg)")
-    c.add_argument("--ftp", type=float, required=True, help="FTP du cycliste (W)")
-    c.add_argument(
+    parser.add_argument("--gpx", required=True, help="Chemin du fichier GPX")
+    parser.add_argument("--mass", type=float, required=True, help="Poids du cycliste (kg)")
+    parser.add_argument("--ftp", type=float, required=True, help="FTP du cycliste (W)")
+    parser.add_argument(
         "--height",
         type=float,
         default=None,
@@ -283,37 +305,65 @@ def main() -> None:
     )
 
     # Configuration vélo depuis bibliothèque (recommandé)
-    c.add_argument(
+    parser.add_argument(
         "--bike-type",
         type=str,
         default="aero_road",
         choices=list_bike_types(),
         help="Type de vélo (défaut: aero_road)",
     )
-    c.add_argument(
+    parser.add_argument(
         "--position",
         type=str,
         default="drops",
         choices=list_positions(),
         help="Position sur le vélo (défaut: drops)",
     )
-    c.add_argument(
+    parser.add_argument(
         "--wheels",
         type=str,
         default=None,
+        choices=list_wheel_types(),
         help="Type de roues (défaut: mid_depth)",
     )
 
     # Configuration manuelle avancée (optionnel, surcharge --bike-type)
-    c.add_argument("--bike-mass", type=float, default=None, help="Poids vélo manuel (kg)")
-    c.add_argument("--cda", type=float, default=None, help="CdA manuel (m²)")
-    c.add_argument("--crr", type=float, default=None, help="Crr manuel")
-    c.add_argument("--eff", type=float, default=None, help="Rendement transmission manuel")
+    parser.add_argument("--bike-mass", type=float, default=None, help="Poids vélo manuel (kg)")
+    parser.add_argument("--cda", type=float, default=None, help="CdA manuel (m²)")
+    parser.add_argument("--crr", type=float, default=None, help="Crr manuel")
+    parser.add_argument("--eff", type=float, default=None, help="Rendement transmission manuel")
 
     # Paramètres de performance optionnels
-    c.add_argument("--cp", type=float, default=None, help="Critical Power (W)")
-    c.add_argument("--wprime", type=float, default=None, help="W' (J)")
-    c.add_argument("--age", type=int, default=None, help="Âge (ans)")
+    parser.add_argument("--cp", type=float, default=None, help="Critical Power (W)")
+    parser.add_argument("--wprime", type=float, default=None, help="W' (J)")
+    parser.add_argument("--age", type=int, default=None, help="Âge (ans)")
+
+
+def _add_pacing_args(parser):
+    """Add common pacing strategy arguments to a parser."""
+    parser.add_argument(
+        "--power-flat", type=float, required=True, help="Puissance de base sur plat (W)"
+    )
+    parser.add_argument("--up-mult", type=float, default=1.10, help="Multiplicateur en montée")
+    parser.add_argument("--down-mult", type=float, default=0.75, help="Multiplicateur en descente")
+    parser.add_argument("--max-delta", type=float, default=30.0, help="Variation max entre pas (W)")
+    parser.add_argument("--step-m", type=float, default=20.0, help="Pas de rééchantillonnage (m)")
+    parser.add_argument(
+        "--gross-eff", type=float, default=0.22, help="Rendement global (mécanique -> alimentaire)"
+    )
+    parser.add_argument("--output-dir", default="outputs", help="Dossier de sortie")
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(
+        prog="pace-gpx", description="Optimiseur de pacing vélo à partir d'un GPX"
+    )
+    sub = p.add_subparsers(dest="cmd")
+
+    c = sub.add_parser("compute", help="Calculer la puissance cible et le plan de ravitaillement")
+    _add_rider_args(c)
+    _add_pacing_args(c)
+
     # Weather controls
     c.add_argument(
         "--auto-weather",
@@ -349,20 +399,12 @@ def main() -> None:
         default=0.0,
         help="Vent v Nord (m/s) si pas d'auto-weather",
     )
-    # Pacing config
-    c.add_argument("--power-flat", type=float, required=True, help="Puissance de base sur plat (W)")
-    c.add_argument("--up-mult", type=float, default=1.10, help="Multiplicateur en montée")
-    c.add_argument("--down-mult", type=float, default=0.75, help="Multiplicateur en descente")
-    c.add_argument("--max-delta", type=float, default=30.0, help="Variation max entre pas (W)")
-    c.add_argument("--step-m", type=float, default=20.0, help="Pas de rééchantillonnage (m)")
-    c.add_argument(
-        "--gross-eff", type=float, default=0.22, help="Rendement global (mécanique -> alimentaire)"
-    )
-    c.add_argument("--output-dir", default="outputs", help="Dossier de sortie")
+
     # Exports
     c.add_argument(
         "--export-gpx", action="store_true", help="Exporte une trace GPX avec les puissances cibles"
     )
+    c.add_argument("--export-map", action="store_true", help="Exporte une carte interactive HTML")
     c.add_argument(
         "--start-time-now",
         action="store_true",
@@ -374,59 +416,9 @@ def main() -> None:
         "optimize-start",
         help="Balaye les heures et choisit l'heure de départ optimale (météo/vent)",
     )
-    # Required: trace et infos cycliste
-    o.add_argument("--gpx", required=True, help="Chemin du fichier GPX")
-    o.add_argument("--mass", type=float, required=True, help="Poids du cycliste (kg)")
-    o.add_argument("--ftp", type=float, required=True, help="FTP du cycliste (W)")
-    o.add_argument(
-        "--height",
-        type=float,
-        default=None,
-        help="Taille du cycliste (m) - ajuste automatiquement le CdA",
-    )
+    _add_rider_args(o)
+    _add_pacing_args(o)
 
-    # Configuration vélo depuis bibliothèque (recommandé)
-    o.add_argument(
-        "--bike-type",
-        type=str,
-        default="aero_road",
-        choices=list_bike_types(),
-        help="Type de vélo (défaut: aero_road)",
-    )
-    o.add_argument(
-        "--position",
-        type=str,
-        default="drops",
-        choices=list_positions(),
-        help="Position sur le vélo (défaut: drops)",
-    )
-    o.add_argument(
-        "--wheels",
-        type=str,
-        default=None,
-        help="Type de roues (défaut: mid_depth)",
-    )
-
-    # Configuration manuelle avancée (optionnel, surcharge --bike-type)
-    o.add_argument("--bike-mass", type=float, default=None, help="Poids vélo manuel (kg)")
-    o.add_argument("--cda", type=float, default=None, help="CdA manuel (m²)")
-    o.add_argument("--crr", type=float, default=None, help="Crr manuel")
-    o.add_argument("--eff", type=float, default=None, help="Rendement transmission manuel")
-
-    # Paramètres de performance optionnels
-    o.add_argument("--cp", type=float, default=None, help="Critical Power (W)")
-    o.add_argument("--wprime", type=float, default=None, help="W' (J)")
-    o.add_argument("--age", type=int, default=None, help="Âge (ans)")
-    # Pacing config
-    o.add_argument("--power-flat", type=float, required=True, help="Puissance de base sur plat (W)")
-    o.add_argument("--up-mult", type=float, default=1.10, help="Multiplicateur en montée")
-    o.add_argument("--down-mult", type=float, default=0.75, help="Multiplicateur en descente")
-    o.add_argument("--max-delta", type=float, default=30.0, help="Variation max entre pas (W)")
-    o.add_argument("--step-m", type=float, default=20.0, help="Pas de rééchantillonnage (m)")
-    o.add_argument(
-        "--gross-eff", type=float, default=0.22, help="Rendement global (mécanique -> alimentaire)"
-    )
-    o.add_argument("--output-dir", default="outputs", help="Dossier de sortie")
     # Balayage horaire
     o.add_argument(
         "--start-hour",
@@ -440,12 +432,14 @@ def main() -> None:
         default=20,
         help="Heure de départ maximale (index horaire UTC simplifié)",
     )
+
     # Export GPX de la meilleure heure
     o.add_argument(
         "--export-gpx",
         action="store_true",
         help="Exporte la GPX avec puissances cibles pour l'heure optimale",
     )
+    o.add_argument("--export-map", action="store_true", help="Exporte une carte interactive HTML")
     o.set_defaults(func=optimize_start)
 
     args = p.parse_args()
