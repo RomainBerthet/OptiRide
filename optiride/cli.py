@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from .bike_library import get_bike_config, list_bike_types, list_positions
 from .env import air_density_kg_m3
 from .exporter import write_power_gpx
 from .gpxio import read_gpx_resample
@@ -18,16 +19,32 @@ from .weather import fetch_open_meteo, met_wdir_to_uv
 
 def _build_rb_env(args, airtemp, humidity, pressure, wind_u, wind_v):
     rho = air_density_kg_m3(airtemp, pressure, humidity)
+
+    # Start with bike library defaults, adjusted for rider anthropometry
+    bike_config = get_bike_config(
+        getattr(args, "bike_type", "aero_road"),
+        position=getattr(args, "position", "drops"),
+        wheels=getattr(args, "wheels", None),
+        rider_height_m=getattr(args, "height", None),
+        rider_mass_kg=args.mass,
+    )
+
+    # Allow manual overrides (if specified, they take precedence)
+    mass_bike = getattr(args, "bike_mass", None) or bike_config["mass_kg"]
+    cda = getattr(args, "cda", None) or bike_config["cda"]
+    crr = getattr(args, "crr", None) or bike_config["crr"]
+    eff = getattr(args, "eff", None) or bike_config["drivetrain_efficiency"]
+
     rb = RiderBike(
         mass_rider_kg=args.mass,
-        mass_bike_kg=args.bike_mass,
-        crr=args.crr,
-        cda=args.cda,
-        drivetrain_eff=args.eff,
-        cp=args.cp,
-        w_prime_j=args.wprime,
-        ftp=args.ftp,
-        age=args.age,
+        mass_bike_kg=mass_bike,
+        crr=crr,
+        cda=cda,
+        drivetrain_eff=eff,
+        cp=getattr(args, "cp", None),
+        w_prime_j=getattr(args, "wprime", None),
+        ftp=getattr(args, "ftp", None),
+        age=getattr(args, "age", None),
     )
     env = Environment(air_density=rho, wind_u_ms=wind_u, wind_v_ms=wind_v)
     return rb, env, rho
@@ -254,14 +271,47 @@ def main() -> None:
     sub = p.add_subparsers(dest="cmd")
 
     c = sub.add_parser("compute", help="Calculer la puissance cible et le plan de ravitaillement")
-    c.add_argument("--gpx", required=True, help="Chemin du GPX")
-    c.add_argument("--mass", type=float, required=True, help="Poids cycliste (kg)")
-    c.add_argument("--bike-mass", type=float, default=8.0, help="Poids vélo (kg)")
-    c.add_argument("--cda", type=float, required=True, help="CdA (m^2)")
-    c.add_argument("--crr", type=float, default=0.0035, help="Coefficient de roulement")
-    c.add_argument("--eff", type=float, default=0.97, help="Rendement transmission")
+    # Required: trace et infos cycliste
+    c.add_argument("--gpx", required=True, help="Chemin du fichier GPX")
+    c.add_argument("--mass", type=float, required=True, help="Poids du cycliste (kg)")
+    c.add_argument("--ftp", type=float, required=True, help="FTP du cycliste (W)")
+    c.add_argument(
+        "--height",
+        type=float,
+        default=None,
+        help="Taille du cycliste (m) - ajuste automatiquement le CdA",
+    )
+
+    # Configuration vélo depuis bibliothèque (recommandé)
+    c.add_argument(
+        "--bike-type",
+        type=str,
+        default="aero_road",
+        choices=list_bike_types(),
+        help="Type de vélo (défaut: aero_road)",
+    )
+    c.add_argument(
+        "--position",
+        type=str,
+        default="drops",
+        choices=list_positions(),
+        help="Position sur le vélo (défaut: drops)",
+    )
+    c.add_argument(
+        "--wheels",
+        type=str,
+        default=None,
+        help="Type de roues (défaut: mid_depth)",
+    )
+
+    # Configuration manuelle avancée (optionnel, surcharge --bike-type)
+    c.add_argument("--bike-mass", type=float, default=None, help="Poids vélo manuel (kg)")
+    c.add_argument("--cda", type=float, default=None, help="CdA manuel (m²)")
+    c.add_argument("--crr", type=float, default=None, help="Crr manuel")
+    c.add_argument("--eff", type=float, default=None, help="Rendement transmission manuel")
+
+    # Paramètres de performance optionnels
     c.add_argument("--cp", type=float, default=None, help="Critical Power (W)")
-    c.add_argument("--ftp", type=float, default=None, help="FTP si CP inconnu (W)")
     c.add_argument("--wprime", type=float, default=None, help="W' (J)")
     c.add_argument("--age", type=int, default=None, help="Âge (ans)")
     # Weather controls
@@ -324,14 +374,47 @@ def main() -> None:
         "optimize-start",
         help="Balaye les heures et choisit l'heure de départ optimale (météo/vent)",
     )
-    o.add_argument("--gpx", required=True, help="Chemin du GPX")
-    o.add_argument("--mass", type=float, required=True, help="Poids cycliste (kg)")
-    o.add_argument("--bike-mass", type=float, default=8.0, help="Poids vélo (kg)")
-    o.add_argument("--cda", type=float, required=True, help="CdA (m^2)")
-    o.add_argument("--crr", type=float, default=0.0035, help="Coefficient de roulement")
-    o.add_argument("--eff", type=float, default=0.97, help="Rendement transmission")
+    # Required: trace et infos cycliste
+    o.add_argument("--gpx", required=True, help="Chemin du fichier GPX")
+    o.add_argument("--mass", type=float, required=True, help="Poids du cycliste (kg)")
+    o.add_argument("--ftp", type=float, required=True, help="FTP du cycliste (W)")
+    o.add_argument(
+        "--height",
+        type=float,
+        default=None,
+        help="Taille du cycliste (m) - ajuste automatiquement le CdA",
+    )
+
+    # Configuration vélo depuis bibliothèque (recommandé)
+    o.add_argument(
+        "--bike-type",
+        type=str,
+        default="aero_road",
+        choices=list_bike_types(),
+        help="Type de vélo (défaut: aero_road)",
+    )
+    o.add_argument(
+        "--position",
+        type=str,
+        default="drops",
+        choices=list_positions(),
+        help="Position sur le vélo (défaut: drops)",
+    )
+    o.add_argument(
+        "--wheels",
+        type=str,
+        default=None,
+        help="Type de roues (défaut: mid_depth)",
+    )
+
+    # Configuration manuelle avancée (optionnel, surcharge --bike-type)
+    o.add_argument("--bike-mass", type=float, default=None, help="Poids vélo manuel (kg)")
+    o.add_argument("--cda", type=float, default=None, help="CdA manuel (m²)")
+    o.add_argument("--crr", type=float, default=None, help="Crr manuel")
+    o.add_argument("--eff", type=float, default=None, help="Rendement transmission manuel")
+
+    # Paramètres de performance optionnels
     o.add_argument("--cp", type=float, default=None, help="Critical Power (W)")
-    o.add_argument("--ftp", type=float, default=None, help="FTP si CP inconnu (W)")
     o.add_argument("--wprime", type=float, default=None, help="W' (J)")
     o.add_argument("--age", type=int, default=None, help="Âge (ans)")
     # Pacing config
