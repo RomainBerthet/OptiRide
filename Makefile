@@ -64,10 +64,86 @@ clean:  ## Clean build artifacts and caches
 build:  ## Build distribution packages
 	python -m build
 
-publish-test:  ## Publish to Test PyPI
+check-build:  ## Check built packages
+	twine check dist/*
+
+# ===== Release Management =====
+
+release-check:  ## Check if ready for release (run all checks)
+	@echo "🔍 Running quality checks..."
+	@make quality
+	@echo "🧪 Running tests..."
+	@make test-cov
+	@echo "🏗️  Building package..."
+	@make clean build
+	@echo "✅ All checks passed! Ready for release."
+
+release-patch:  ## Create a patch release (0.1.0 -> 0.1.1)
+	@echo "Creating patch release..."
+	@make release-check
+	@python -c "import re; \
+		content = open('pyproject.toml').read(); \
+		version = re.search(r'version = \"(.+)\"', content).group(1); \
+		major, minor, patch = version.split('.'); \
+		new_version = f'{major}.{minor}.{int(patch)+1}'; \
+		print(f'Current: {version} -> New: {new_version}'); \
+		open('pyproject.toml', 'w').write(content.replace(f'version = \"{version}\"', f'version = \"{new_version}\"'))"
+	@echo "✅ Version bumped. Don't forget to update CHANGELOG.md!"
+	@echo "Next steps:"
+	@echo "  1. Update CHANGELOG.md with new version"
+	@echo "  2. git add pyproject.toml CHANGELOG.md"
+	@echo "  3. make release-tag"
+
+release-minor:  ## Create a minor release (0.1.0 -> 0.2.0)
+	@echo "Creating minor release..."
+	@make release-check
+	@python -c "import re; \
+		content = open('pyproject.toml').read(); \
+		version = re.search(r'version = \"(.+)\"', content).group(1); \
+		major, minor, patch = version.split('.'); \
+		new_version = f'{major}.{int(minor)+1}.0'; \
+		print(f'Current: {version} -> New: {new_version}'); \
+		open('pyproject.toml', 'w').write(content.replace(f'version = \"{version}\"', f'version = \"{new_version}\"'))"
+	@echo "✅ Version bumped. Don't forget to update CHANGELOG.md!"
+	@echo "Next steps:"
+	@echo "  1. Update CHANGELOG.md with new version"
+	@echo "  2. git add pyproject.toml CHANGELOG.md"
+	@echo "  3. make release-tag"
+
+release-major:  ## Create a major release (0.1.0 -> 1.0.0)
+	@echo "Creating major release..."
+	@make release-check
+	@python -c "import re; \
+		content = open('pyproject.toml').read(); \
+		version = re.search(r'version = \"(.+)\"', content).group(1); \
+		major, minor, patch = version.split('.'); \
+		new_version = f'{int(major)+1}.0.0'; \
+		print(f'Current: {version} -> New: {new_version}'); \
+		open('pyproject.toml', 'w').write(content.replace(f'version = \"{version}\"', f'version = \"{new_version}\"'))"
+	@echo "✅ Version bumped. Don't forget to update CHANGELOG.md!"
+	@echo "Next steps:"
+	@echo "  1. Update CHANGELOG.md with new version"
+	@echo "  2. git add pyproject.toml CHANGELOG.md"
+	@echo "  3. make release-tag"
+
+release-tag:  ## Create and push release tag
+	@VERSION=$$(grep -E '^version = ' pyproject.toml | cut -d'"' -f2); \
+	echo "Creating release tag v$$VERSION..."; \
+	git commit -m "Release v$$VERSION" || true; \
+	git tag -a "v$$VERSION" -m "Release v$$VERSION"; \
+	echo "✅ Tag created: v$$VERSION"; \
+	echo ""; \
+	echo "To push and trigger release:"; \
+	echo "  git push origin main"; \
+	echo "  git push origin v$$VERSION"
+
+publish-test:  ## Publish to Test PyPI (manual)
 	python -m twine upload --repository testpypi dist/*
 
-publish:  ## Publish to PyPI
+publish:  ## Publish to PyPI (manual - use GitHub Actions for releases)
+	@echo "⚠️  WARNING: Use 'git push origin v*.*.*' to trigger automatic release"
+	@echo "This command is for manual publishing only."
+	@read -p "Continue with manual publish? [y/N] " confirm && [ "$$confirm" = "y" ] || exit 1
 	python -m twine upload dist/*
 
 docs:  ## Build documentation
