@@ -3,23 +3,198 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "OptiRide"
+name = "optiride"
 version = "0.1.0"
-description = "Optimiseur de pacing vélo à partir d'un GPX (puissance, nutrition, hydratation, heure de départ)."
+description = "Professional cycling pacing optimizer using GPX data: power targets, nutrition planning, and start time optimization."
 readme = "README.md"
 authors = [{name="Romain BERTHET", email="berthet.romain3@gmail.com"}]
+license = {text = "MIT"}
+keywords = ["cycling", "gpx", "power", "pacing", "optimization", "nutrition", "bike", "training"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Typing :: Typed",
+]
 requires-python = ">=3.9"
 dependencies = [
     "requests>=2.31",
     "gpxpy>=1.6.2",
-    "numpy>=1.24",
+    "numpy>=1.24,<3.0",
     "scipy>=1.10",
     "pandas>=2.0",
-    "matplotlib>=3.7"
+    "matplotlib>=3.7",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-xdist>=3.5",
+    "ruff>=0.6.0",
+    "mypy>=1.11",
+    "pre-commit>=3.8",
+    "types-requests>=2.31",
+]
+docs = [
+    "sphinx>=7.0",
+    "sphinx-rtd-theme>=2.0",
+    "sphinx-autodoc-typehints>=2.0",
+    "myst-parser>=3.0",
+]
+jupyter = [
+    "jupyter>=1.0",
+    "ipywidgets>=8.1",
+    "plotly>=5.22",
+]
+
+[project.urls]
+Homepage = "https://github.com/romainberthet/optiride"
+Documentation = "https://optiride.readthedocs.io"
+Repository = "https://github.com/romainberthet/optiride"
+Issues = "https://github.com/romainberthet/optiride/issues"
+Changelog = "https://github.com/romainberthet/optiride/blob/main/CHANGELOG.md"
+
 [project.scripts]
-pace-gpx = "optiride.cli:main"
+optiride = "optiride.cli:main"
+
+[tool.setuptools]
+packages = ["optiride"]
 
 [tool.setuptools.package-data]
-velopace = ["py.typed"]
+optiride = ["py.typed"]
+
+# ==============================================================================
+# Ruff configuration (modern linter & formatter)
+# ==============================================================================
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+extend-exclude = [
+    ".venv",
+    "venv",
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "RUF",    # ruff-specific rules
+]
+ignore = [
+    "D100",   # Missing docstring in public module
+    "D104",   # Missing docstring in public package
+    "D103",   # Missing docstring in public function
+    "D205",   # 1 blank line required between summary line and description
+    "D415",   # First line should end with a period
+    "N803",   # Argument name should be lowercase (P_target is domain-specific)
+    "N806",   # Variable in function should be lowercase (P, T, W are physics notation)
+    "PTH103", # os.makedirs -> Path.mkdir (os.path is fine for now)
+    "PTH118", # os.path.join -> Path (os.path is fine for now)
+    "PTH123", # open() -> Path.open() (built-in open is fine)
+    "C408",   # Unnecessary dict call (dict() is more explicit sometimes)
+    "SIM108", # Use ternary operator (if/else is clearer for complex logic)
+    "ARG001", # Unused function argument (kept for API consistency)
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D"]
+"examples/*" = ["D"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+# ==============================================================================
+# MyPy configuration (static type checking)
+# ==============================================================================
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_any_unimported = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = false
+warn_no_return = true
+check_untyped_defs = true
+strict_equality = true
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = "gpxpy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "matplotlib.*"
+ignore_missing_imports = true
+
+# ==============================================================================
+# Pytest configuration
+# ==============================================================================
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--showlocals",
+    "--cov=optiride",
+    "--cov-report=html",
+    "--cov-report=term-missing:skip-covered",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+# ==============================================================================
+# Coverage configuration
+# ==============================================================================
+[tool.coverage.run]
+source = ["optiride"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

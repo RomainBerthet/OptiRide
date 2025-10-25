@@ -1,0 +1,42 @@
+OptiRide/
+├── .github/
+│   └── workflows/
+│       └── ci.yml                 # GitHub Actions CI/CD pipeline
+│
+├── optiride/                      # Main package
+│   ├── __init__.py               # Public API exports
+│   ├── cli.py                    # Command-line interface
+│   ├── models.py                 # Data models (RiderBike, Environment)
+│   ├── physics.py                # Physics calculations (Martin et al.)
+│   ├── optimizer.py              # Pacing optimization algorithms
+│   ├── gpxio.py                  # GPX file I/O and resampling
+│   ├── weather.py                # Weather API integration
+│   ├── nutrition.py              # Nutrition and hydration planning
+│   ├── exporter.py               # Output file generation
+│   ├── env.py                    # Environmental physics (air density)
+│   └── py.typed                  # PEP 561 marker for type hints
+│
+├── tests/                         # Test suite
+│   ├── __init__.py
+│   ├── conftest.py               # Pytest fixtures
+│   ├── test_models.py            # Tests for data models
+│   ├── test_physics.py           # Tests for physics calculations
+│   └── test_env.py               # Tests for environmental calculations
+│
+├── examples/                      # Example files
+│   └── sample.gpx                # Sample GPX route
+│
+├── docs/                          # Documentation (to be created)
+│
+├── .gitignore                     # Git ignore patterns
+├── .editorconfig                  # Editor configuration
+├── .pre-commit-config.yaml        # Pre-commit hooks configuration
+├── pyproject.toml                 # Modern Python project configuration
+├── Makefile                       # Development commands
+├── LICENSE                        # MIT License
+├── README.md                      # Professional README with badges
+├── CONTRIBUTING.md                # Contribution guidelines
+├── CODE_OF_CONDUCT.md            # Code of Conduct (Contributor Covenant)
+├── CHANGELOG.md                   # Version history
+├── IMPROVEMENTS.md                # Detailed improvements documentation
+└── NEXT_STEPS.md                 # Roadmap and next steps

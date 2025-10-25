@@ -1,9 +1,10 @@
-import requests
-from typing import Optional, Dict
+from typing import Optional
 
-def fetch_open_meteo(lat: float, lon: float, hour_utc_index: Optional[int] = None) -> Dict:
-    """
-    Récupère météo horaire depuis Open-Meteo pour lat/lon.
+import requests
+
+
+def fetch_open_meteo(lat: float, lon: float, hour_utc_index: Optional[int] = None) -> dict:
+    """Récupère météo horaire depuis Open-Meteo pour lat/lon.
     hour_utc_index: index d'heure dans la série (None => 0)
     Retourne dict avec: temperature_C, humidity_frac, pressure_Pa, wind_speed_mps, wind_dir_deg
     """
@@ -31,15 +32,16 @@ def fetch_open_meteo(lat: float, lon: float, hour_utc_index: Optional[int] = Non
         humidity_frac=rh,
         pressure_Pa=p_pa,
         wind_speed_mps=wspd,
-        wind_dir_deg=wdir
+        wind_dir_deg=wdir,
     )
 
+
 def met_wdir_to_uv(speed_mps: float, dir_deg_from: float):
-    """
-    Convertit direction météo (d'où vient le vent, en ° depuis le nord) en composantes (u,v) m/s.
+    """Convertit direction météo (d'où vient le vent, en ° depuis le nord) en composantes (u,v) m/s.
     u = vers l'est, v = vers le nord.
     """
     import math
+
     rad = math.radians(dir_deg_from)
     u = -speed_mps * math.sin(rad)
     v = -speed_mps * math.cos(rad)
