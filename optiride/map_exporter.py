@@ -134,14 +134,14 @@ def export_interactive_map(
 
     # Add start marker
     folium.Marker(
-        location=[lats[0], lons[0]],
+        location=[float(lats[0]), float(lons[0])],
         popup="Départ",
         icon=folium.Icon(color="green", icon="play", prefix="fa"),
     ).add_to(m)
 
     # Add finish marker
     folium.Marker(
-        location=[lats[-1], lons[-1]],
+        location=[float(lats[-1]), float(lons[-1])],
         popup="Arrivée",
         icon=folium.Icon(color="red", icon="flag-checkered", prefix="fa"),
     ).add_to(m)
@@ -224,7 +224,7 @@ def export_interactive_map(
             </table>
         </div>
         """
-        m.get_root().html.add_child(folium.Element(stats_html))
+        m.get_root().html.add_child(folium.Element(stats_html))  # type: ignore[attr-defined]
 
     # Add power zones legend with personalized FTP values
     legend_html = f"""
@@ -250,7 +250,7 @@ def export_interactive_map(
         </div>
     </div>
     """
-    m.get_root().html.add_child(folium.Element(legend_html))
+    m.get_root().html.add_child(folium.Element(legend_html))  # type: ignore[attr-defined]
 
     # Add elevation profile chart (using MiniMap-like approach)
     # Create a simple elevation chart as HTML/SVG
@@ -259,7 +259,7 @@ def export_interactive_map(
 
     # Sample points for elevation profile (max 100 points for performance)
     step = max(1, len(elevations) // 100)
-    profile_indices = range(0, len(elevations), step)
+    profile_indices = list(range(0, len(elevations), step))
 
     profile_html = (
         '<div style="position: fixed; bottom: 50px; right: 10px; width: 400px; height: '
@@ -270,10 +270,9 @@ def export_interactive_map(
     )
 
     # Draw elevation profile
-    for idx in profile_indices:
-        i = idx
-        x = (i / len(elevations)) * 380
-        y = 80 - ((elevations[i] - elev_min) / elev_range) * 70
+    for profile_i in profile_indices:
+        x = float((profile_i / len(elevations)) * 380)
+        y = float(80 - ((elevations[profile_i] - elev_min) / elev_range) * 70)
         profile_html += f'<circle cx="{x}" cy="{y}" r="1.5" fill="#1976d2" opacity="0.6"/>'
 
     # Add baseline
@@ -282,7 +281,7 @@ def export_interactive_map(
     profile_html += f'<text x="5" y="75" font-size="10" fill="#666">{elev_min:.0f}m</text>'
     profile_html += "</svg></div>"
 
-    m.get_root().html.add_child(folium.Element(profile_html))
+    m.get_root().html.add_child(folium.Element(profile_html))  # type: ignore[attr-defined]
 
     # Add fullscreen control
     plugins.Fullscreen().add_to(m)

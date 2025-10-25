@@ -53,7 +53,9 @@ def simulate(
     v = np.zeros_like(P_target)
     dt = np.zeros_like(P_target)
     for i in range(len(P_target)):
-        v[i] = speed_from_power(P_target[i], slope[i], bearings_deg[i], rb, env)
+        v[i] = speed_from_power(
+            float(P_target[i]), float(slope[i]), float(bearings_deg[i]), rb, env
+        )
         dt[i] = ds / max(0.01, v[i])
     T = dt.sum()
     work_J = float(np.sum(P_target * dt))
